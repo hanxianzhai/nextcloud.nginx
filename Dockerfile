@@ -1,5 +1,5 @@
 # DO NOT EDIT: created by update.sh from Dockerfile-debian.template
-FROM php:7.2-fpm-stretch
+FROM php:7-fpm-stretch
 
 ######-----------------------php------------------------
 
@@ -37,6 +37,7 @@ RUN set -ex; \
         libpq-dev \
         libxml2-dev \
         libmagickwand-dev \
+        libmemcached-dev \
         supervisor \
     ; \
     \
