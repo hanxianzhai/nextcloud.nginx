@@ -56,6 +56,7 @@ RUN set -ex; \
     ; \
     \
 # pecl will claim success even if one install fails, so we need to perform each install separately
+    pecl install igbinary; \
     printf "no\\n" | pecl install APCu; \
     printf "yes\\nyes\\nyes\\nyes\\nyes\\nyes\\nyes\\n\\n" | pecl install memcached; \
     printf "yes\\nyes\\n" | pecl install redis; \
