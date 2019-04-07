@@ -35,6 +35,7 @@ RUN set -ex; \
         libmemcached-dev \
         libpng-dev \
         libpq-dev \
+        libzip-dev \
         libxml2-dev \
         libmagickwand-dev \
         libmemcached-dev \
