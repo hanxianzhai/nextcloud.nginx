@@ -1,6 +1,87 @@
 # DO NOT EDIT: created by update.sh from Dockerfile-debian.template
 FROM php:7.2-fpm-stretch
 
+######-----------------------php------------------------
+
+# entrypoint.sh and cron.sh dependencies
+RUN set -ex; \
+    \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        rsync \
+        bzip2 \
+        busybox-static \
+    ; \
+    rm -rf /var/lib/apt/lists/*; \
+    \
+    mkdir -p /var/spool/cron/crontabs; \
+    echo '*/15 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
+
+# install the PHP extensions we need
+# see https://docs.nextcloud.com/server/12/admin_manual/installation/source_installation.html
+RUN set -ex; \
+    \
+    savedAptMark="$(apt-mark showmanual)"; \
+    \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        libcurl4-openssl-dev \
+        libevent-dev \
+        libfreetype6-dev \
+        libicu-dev \
+        libjpeg-dev \
+        libldap2-dev \
+        libmcrypt-dev \
+        libmemcached-dev \
+        libpng-dev \
+        libpq-dev \
+        libxml2-dev \
+        libmagickwand-dev \
+        supervisor \
+    ; \
+    \
+    debMultiarch="$(dpkg-architecture --query DEB_BUILD_MULTIARCH)"; \
+    docker-php-ext-configure gd --with-freetype-dir=/usr --with-png-dir=/usr --with-jpeg-dir=/usr; \
+    docker-php-ext-configure ldap --with-libdir="lib/$debMultiarch"; \
+    docker-php-ext-install \
+        exif \
+        gd \
+        intl \
+        ldap \
+        opcache \
+        pcntl \
+        pdo_mysql \
+        pdo_pgsql \
+        zip \
+    ; \
+    \
+# pecl will claim success even if one install fails, so we need to perform each install separately
+    printf "no\\n" | pecl install APCu; \
+    printf "yes\\nyes\\nyes\\nyes\\nyes\\nyes\\nyes\\n\\n" | pecl install memcached; \
+    printf "yes\\nyes\\n" | pecl install redis; \
+    printf "\\n" | pecl install imagick; \
+    \
+    docker-php-ext-enable \
+        apcu \
+        memcached \
+        redis \
+        imagick \
+    ; \
+    \
+# reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
+    apt-mark auto '.*' > /dev/null; \
+    apt-mark manual $savedAptMark; \
+    ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
+        | awk '/=>/ { print $3 }' \
+        | sort -u \
+        | xargs -r dpkg-query -S \
+        | cut -d: -f1 \
+        | sort -u \
+        | xargs -rt apt-mark manual; \
+    \
+    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
+    rm -rf /var/lib/apt/lists/*
+
 ENV NGINX_VERSION 1.15.10-1~stretch
 ENV NJS_VERSION   1.15.10.0.3.0-1~stretch
 
@@ -90,87 +171,6 @@ RUN set -x \
 # forward request and error logs to docker log collector
 RUN ln -sf /dev/stdout /var/log/nginx/access.log \
 	&& ln -sf /dev/stderr /var/log/nginx/error.log
-
-######-----------------------php------------------------
-
-# entrypoint.sh and cron.sh dependencies
-RUN set -ex; \
-    \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
-        rsync \
-        bzip2 \
-        busybox-static \
-    ; \
-    rm -rf /var/lib/apt/lists/*; \
-    \
-    mkdir -p /var/spool/cron/crontabs; \
-    echo '*/15 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
-
-# install the PHP extensions we need
-# see https://docs.nextcloud.com/server/12/admin_manual/installation/source_installation.html
-RUN set -ex; \
-    \
-    savedAptMark="$(apt-mark showmanual)"; \
-    \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
-        libcurl4-openssl-dev \
-        libevent-dev \
-        libfreetype6-dev \
-        libicu-dev \
-        libjpeg-dev \
-        libldap2-dev \
-        libmcrypt-dev \
-        libmemcached-dev \
-        libpng-dev \
-        libpq-dev \
-        libxml2-dev \
-        libmagickwand-dev \
-        supervisor \
-    ; \
-    \
-    debMultiarch="$(dpkg-architecture --query DEB_BUILD_MULTIARCH)"; \
-    docker-php-ext-configure gd --with-freetype-dir=/usr --with-png-dir=/usr --with-jpeg-dir=/usr; \
-    docker-php-ext-configure ldap --with-libdir="lib/$debMultiarch"; \
-    docker-php-ext-install \
-        exif \
-        gd \
-        intl \
-        ldap \
-        opcache \
-        pcntl \
-        pdo_mysql \
-        pdo_pgsql \
-        zip \
-    ; \
-    \
-# pecl will claim success even if one install fails, so we need to perform each install separately
-    printf "no\\n" | pecl install APCu; \
-    printf "yes\\nyes\\nyes\\nyes\\nyes\\nyes\\nyes\\n\\n" | pecl install memcached; \
-    printf "yes\\nyes\\n" | pecl install redis; \
-    printf "\\n" | pecl install imagick; \
-    \
-    docker-php-ext-enable \
-        apcu \
-        memcached \
-        redis \
-        imagick \
-    ; \
-    \
-# reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
-    apt-mark auto '.*' > /dev/null; \
-    apt-mark manual $savedAptMark; \
-    ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
-        | awk '/=>/ { print $3 }' \
-        | sort -u \
-        | xargs -r dpkg-query -S \
-        | cut -d: -f1 \
-        | sort -u \
-        | xargs -rt apt-mark manual; \
-    \
-    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
-    rm -rf /var/lib/apt/lists/*
 
 # set recommended PHP.ini settings
 # see https://docs.nextcloud.com/server/12/admin_manual/configuration_server/server_tuning.html#enable-php-opcache
