@@ -59,7 +59,7 @@ RUN set -ex; \
     pecl install igbinary; \
     pecl install msgpack; \
     printf "no\\n" | pecl install APCu; \
-    printf "yes\\nyes\\nyes\\nyes\\nyes\\nyes\\nyes\\n\\n" | pecl install memcached; \
+    printf "yes\\nyes\\nno\\nyes\\nyes\\nyes\\nyes\\n\\n" | pecl install memcached; \
     printf "yes\\nyes\\n" | pecl install redis; \
     printf "\\n" | pecl install imagick; \
     \
