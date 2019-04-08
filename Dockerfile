@@ -112,10 +112,6 @@ RUN set -ex; \
     mkdir -p /usr/src/nextcloud/custom_apps; \
     chmod +x /usr/src/nextcloud/occ; \
     \
-    mkdir -p /etc/ssl/nginx/; \
-    mv /gencert.sh /etc/ssl/nginx/; \
-    cd /etc/ssl/nginx/ &&./gencert.sh; \
-    \
     NGINX_GPGKEY=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62; \
 	found=''; \
 	for server in \
@@ -257,7 +253,6 @@ COPY supervisord_nginx.conf /etc/supervisor/conf.d/
 COPY *.sh upgrade.exclude /
 COPY config/* /usr/src/nextcloud/config/
 RUN chmod +x /*.sh
-
 
 VOLUME /var/www/html
 VOLUME /etc/ssl/nginx/
