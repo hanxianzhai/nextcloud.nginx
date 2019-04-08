@@ -245,9 +245,11 @@ RUN set -ex \
 
 RUN mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak \
 	&& mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
+    && mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord.conf.bak
 	\
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY pan.itop.vip.conf /etc/nginx/conf.d/
+COPY supervisord.conf /etc/supervisor/
 COPY supervisord_fpm.conf /etc/supervisor/conf.d/
 COPY supervisord_nginx.conf /etc/supervisor/conf.d/
 COPY *.sh upgrade.exclude /
@@ -262,4 +264,4 @@ EXPOSE 80 443
 STOPSIGNAL SIGTERM
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/usr/bin/supervisord","-n","-c","/etc/supervisor/supervisord.conf"]
+CMD ["supervisord"]

@@ -19,7 +19,7 @@ run_as() {
     fi
 }
 
-if expr "$1" : "apache" 1>/dev/null || [ "$1" = "/usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf" ] || [ "${NEXTCLOUD_UPDATE:-0}" -eq 1 ]; then
+if expr "$1" : "apache" 1>/dev/null || [ "$1" = "supervisord" ] || [ "${NEXTCLOUD_UPDATE:-0}" -eq 1 ]; then
     installed_version="0.0.0.0"
     if [ -f /var/www/html/version.php ]; then
         # shellcheck disable=SC2016
