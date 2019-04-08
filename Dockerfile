@@ -1,7 +1,7 @@
-# DO NOT EDIT: created by update.sh from Dockerfile-debian.template
 FROM php:7-fpm-stretch
 
-######-----------------------php------------------------
+ENV NGINX_VERSION 1.15.10-1~stretch
+ENV NJS_VERSION   1.15.10.0.3.0-1~stretch
 
 # entrypoint.sh and cron.sh dependencies
 RUN set -ex; \
@@ -21,10 +21,11 @@ RUN set -ex; \
 # see https://docs.nextcloud.com/server/12/admin_manual/installation/source_installation.html
 RUN set -ex; \
     \
-    savedAptMark_php="$(apt-mark showmanual)"; \
-    \
+# save list of currently-installed packages so build dependencies can be cleanly removed later
+	savedAptMark="$(apt-mark showmanual)"; \
+	\
     apt-get update; \
-    apt-get install -y --no-install-recommends \
+    apt-get install -y --no-install-recommends --no-install-suggests \
         libcurl4-openssl-dev \
         libevent-dev \
         libfreetype6-dev \
@@ -40,6 +41,11 @@ RUN set -ex; \
         libmagickwand-dev \
         libmemcached-dev \
         supervisor \
+        gnupg \
+        dirmngr \
+        gnupg1 \
+        apt-transport-https \
+        ca-certificates \
     ; \
     \
     debMultiarch="$(dpkg-architecture --query DEB_BUILD_MULTIARCH)"; \
@@ -72,29 +78,23 @@ RUN set -ex; \
         imagick \
     ; \
     \
-# reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
-
-    apt-mark auto '.*' > /dev/null; \
-    apt-mark manual $savedAptMark_php; \
-    ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
-        | awk '/=>/ { print $3 }' \
-        | sort -u \
-        | xargs -r dpkg-query -S \
-        | cut -d: -f1 \
-        | sort -u \
-        | xargs -rt apt-mark manual; \
+    curl -fsSL -o nextcloud.tar.bz2 \
+        "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2"; \
+    curl -fsSL -o nextcloud.tar.bz2.asc \
+        "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2.asc"; \
+    export GNUPGHOME="$(mktemp -d)"; \
+# gpg key from https://nextcloud.com/nextcloud.asc
+    gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys 28806A878AE423A28372792ED75899B9A724937A; \
+    gpg --batch --verify nextcloud.tar.bz2.asc nextcloud.tar.bz2; \
+    tar -xjf nextcloud.tar.bz2 -C /usr/src/; \
+    gpgconf --kill all; \
+    rm -r "$GNUPGHOME" nextcloud.tar.bz2.asc nextcloud.tar.bz2; \
+    rm -rf /usr/src/nextcloud/updater; \
+    mkdir -p /usr/src/nextcloud/data; \
+    mkdir -p /usr/src/nextcloud/custom_apps; \
+    chmod +x /usr/src/nextcloud/occ; \
     \
-    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
-    rm -rf /var/lib/apt/lists/*
-
-ENV NGINX_VERSION 1.15.10-1~stretch
-ENV NJS_VERSION   1.15.10.0.3.0-1~stretch
-
-RUN set -x \
-	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y gnupg1 apt-transport-https ca-certificates \
-	&& \
-	NGINX_GPGKEY=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62; \
+    NGINX_GPGKEY=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62; \
 	found=''; \
 	for server in \
 		ha.pool.sks-keyservers.net \
@@ -131,9 +131,6 @@ RUN set -x \
 			&& chmod 777 "$tempDir" \
 # (777 to ensure APT's "_apt" user can access it too)
 			\
-# save list of currently-installed packages so build dependencies can be cleanly removed later
-			&& savedAptMark_nginx="$(apt-mark showmanual)" \
-			\
 # build .deb files from upstream's source packages (which are verified by apt-get)
 			&& apt-get update \
 			&& apt-get build-dep -y $nginxPackages \
@@ -147,7 +144,7 @@ RUN set -x \
 # reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
 # (which is done after we install the built packages so we don't have to redownload any overlapping dependencies)
 			&& apt-mark showmanual | xargs apt-mark auto > /dev/null \
-			&& { [ -z "$savedAptMark_nginx" ] || apt-mark manual $savedAptMark_nginx; } \
+			&& { [ -z "$savedAptMark" ] || apt-mark manual $savedAptMark; } \
 			\
 # create a temporary local APT repo to install from (so that dependency resolution can be handled by APT, as it should be)
 			&& ls -lAFh "$tempDir" \
@@ -165,14 +162,24 @@ RUN set -x \
 	&& apt-get install --no-install-recommends --no-install-suggests -y \
 						$nginxPackages \
 						gettext-base \
-	&& apt-get remove --purge --auto-remove -y apt-transport-https ca-certificates && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx.list \
+	&& apt-get remove --purge --auto-remove -y apt-transport-https ca-certificates \
+    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+    && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx.list \
 	\
 # if we have leftovers from building, let's purge them (including extra, unnecessary build deps)
 	&& if [ -n "$tempDir" ]; then \
 		apt-get purge -y --auto-remove \
 		&& rm -rf "$tempDir" /etc/apt/sources.list.d/temp.list; \
-        #rm -rf "$tempDir" /etc/apt/sources.list.d/temp.list; \
 	fi
+# reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
+    ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
+        | awk '/=>/ { print $3 }' \
+        | sort -u \
+        | xargs -r dpkg-query -S \
+        | cut -d: -f1 \
+        | sort -u \
+        | xargs -rt apt-mark manual; \
+    \
 
 # forward request and error logs to docker log collector
 RUN ln -sf /dev/stdout /var/log/nginx/access.log \
@@ -222,56 +229,24 @@ RUN set -ex \
 		echo '[www]'; \
 		echo 'listen = /dev/shm/php-fpm.sock'; \
 		echo 'listen.owner = www-data'; \
-		echo 'listen.group = www-data'; \
+		echo 'listen.group = root'; \
 		echo 'listen.mode = 0660'; \
 	} | tee php-fpm.d/zz-docker.conf
 
 RUN mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak \
 	&& mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
 	\
-
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY pan.itop.vip.conf /etc/nginx/conf.d/
 COPY supervisord_fpm.conf /etc/supervisor/conf.d/
 COPY supervisord_nginx.conf /etc/supervisor/conf.d/
-
+COPY *.sh upgrade.exclude /
+COPY config/* /usr/src/nextcloud/config/
 
 VOLUME /var/www/html
 VOLUME /etc/ssl/nginx/
 
 EXPOSE 80 443
-
-ENV NEXTCLOUD_VERSION 15.0.6
-
-RUN set -ex; \
-    fetchDeps=" \
-        gnupg \
-        dirmngr \
-    "; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends $fetchDeps; \
-    \
-    curl -L -o nextcloud.tar.bz2 \
-        "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2"; \
-    curl -L -o nextcloud.tar.bz2.asc \
-        "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2.asc"; \
-    export GNUPGHOME="$(mktemp -d)"; \
-# gpg key from https://nextcloud.com/nextcloud.asc
-    gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys 28806A878AE423A28372792ED75899B9A724937A; \
-    gpg --batch --verify nextcloud.tar.bz2.asc nextcloud.tar.bz2; \
-    tar -xjf nextcloud.tar.bz2 -C /usr/src/; \
-    gpgconf --kill all; \
-    rm -r "$GNUPGHOME" nextcloud.tar.bz2.asc nextcloud.tar.bz2; \
-    rm -rf /usr/src/nextcloud/updater; \
-    mkdir -p /usr/src/nextcloud/data; \
-    mkdir -p /usr/src/nextcloud/custom_apps; \
-    chmod +x /usr/src/nextcloud/occ; \
-    \
-    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false $fetchDeps; \
-    rm -rf /var/lib/apt/lists/*
-
-COPY *.sh upgrade.exclude /
-COPY config/* /usr/src/nextcloud/config/
 
 STOPSIGNAL SIGTERM
 
