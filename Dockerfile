@@ -252,7 +252,7 @@ COPY supervisord_fpm.conf /etc/supervisor/conf.d/
 COPY supervisord_nginx.conf /etc/supervisor/conf.d/
 COPY *.sh upgrade.exclude /
 COPY config/* /usr/src/nextcloud/config/
-chmod +x /*.sh
+RUN chmod +x /*.sh
 
 VOLUME /var/www/html
 VOLUME /etc/ssl/nginx/
