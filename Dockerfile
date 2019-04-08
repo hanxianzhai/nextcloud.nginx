@@ -253,7 +253,11 @@ COPY supervisord_nginx.conf /etc/supervisor/conf.d/
 COPY *.sh upgrade.exclude /
 COPY config/* /usr/src/nextcloud/config/
 RUN chmod +x /*.sh
-RUN mv /gencert.sh /etc/ssl/nginx/ && cd /etc/ssl/nginx/ && ./gencert.sh
+RUN mkdir -p /etc/ssl/nginx/ \
+    &&mv /gencert.sh /etc/ssl/nginx/ \
+    &&cd /etc/ssl/nginx/ \
+    &&./gencert.sh
+    \
 
 VOLUME /var/www/html
 VOLUME /etc/ssl/nginx/
