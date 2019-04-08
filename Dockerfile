@@ -21,7 +21,7 @@ RUN set -ex; \
 # see https://docs.nextcloud.com/server/12/admin_manual/installation/source_installation.html
 RUN set -ex; \
     \
-    savedAptMark="$(apt-mark showmanual)"; \
+    savedAptMark_php="$(apt-mark showmanual)"; \
     \
     apt-get update; \
     apt-get install -y --no-install-recommends \
@@ -75,7 +75,7 @@ RUN set -ex; \
 # reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
 
     apt-mark auto '.*' > /dev/null; \
-    apt-mark manual $savedAptMark; \
+    apt-mark manual $savedAptMark_php; \
     ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
         | awk '/=>/ { print $3 }' \
         | sort -u \
@@ -132,7 +132,7 @@ RUN set -x \
 # (777 to ensure APT's "_apt" user can access it too)
 			\
 # save list of currently-installed packages so build dependencies can be cleanly removed later
-			&& savedAptMark="$(apt-mark showmanual)" \
+			&& savedAptMark_nginx="$(apt-mark showmanual)" \
 			\
 # build .deb files from upstream's source packages (which are verified by apt-get)
 			&& apt-get update \
@@ -147,7 +147,7 @@ RUN set -x \
 # reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
 # (which is done after we install the built packages so we don't have to redownload any overlapping dependencies)
 			&& apt-mark showmanual | xargs apt-mark auto > /dev/null \
-			&& { [ -z "$savedAptMark" ] || apt-mark manual $savedAptMark; } \
+			&& { [ -z "$savedAptMark_nginx" ] || apt-mark manual $savedAptMark_nginx; } \
 			\
 # create a temporary local APT repo to install from (so that dependency resolution can be handled by APT, as it should be)
 			&& ls -lAFh "$tempDir" \
@@ -251,9 +251,9 @@ RUN set -ex; \
     apt-get update; \
     apt-get install -y --no-install-recommends $fetchDeps; \
     \
-    curl -fsSL -o nextcloud.tar.bz2 \
+    curl -L -o nextcloud.tar.bz2 \
         "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2"; \
-    curl -fsSL -o nextcloud.tar.bz2.asc \
+    curl -L -o nextcloud.tar.bz2.asc \
         "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2.asc"; \
     export GNUPGHOME="$(mktemp -d)"; \
 # gpg key from https://nextcloud.com/nextcloud.asc
