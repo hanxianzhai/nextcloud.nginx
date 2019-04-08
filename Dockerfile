@@ -92,8 +92,18 @@ RUN set -ex; \
         "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2.asc"; \
     export GNUPGHOME="$(mktemp -d)"; \
 # gpg key from https://nextcloud.com/nextcloud.asc
-    gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys 28806A878AE423A28372792ED75899B9A724937A; \
-    gpg --batch --verify nextcloud.tar.bz2.asc nextcloud.tar.bz2; \
+    NEXTCLOUD_GPGKEY=28806A878AE423A28372792ED75899B9A724937A; \
+	find=''; \
+	for server in \
+		ha.pool.sks-keyservers.net \
+		hkp://keyserver.ubuntu.com:80 \
+		hkp://p80.pool.sks-keyservers.net:80 \
+		pgp.mit.edu \
+	; do \
+		echo "Fetching GPG key $NEXTCLOUD_GPGKEY from $server"; \
+		gpg --batch --keyserver "$server" --recv-keys "$NEXTCLOUD_GPGKEY" && find=yes && break; \
+	done; \
+	test -z "$find" && echo >&2 "error: failed to fetch GPG key $NEXTCLOUD_GPGKEY" && exit 1; \
     tar -xjf nextcloud.tar.bz2 -C /usr/src/; \
     gpgconf --kill all; \
     rm -r "$GNUPGHOME" nextcloud.tar.bz2.asc nextcloud.tar.bz2; \
@@ -114,7 +124,7 @@ RUN set -ex; \
 		apt-key adv --keyserver "$server" --keyserver-options timeout=10 --recv-keys "$NGINX_GPGKEY" && found=yes && break; \
 	done; \
 	test -z "$found" && echo >&2 "error: failed to fetch GPG key $NGINX_GPGKEY" && exit 1; \
-	apt-get remove --purge --auto-remove -y gnupg1 && rm -rf /var/lib/apt/lists/* \
+	apt-get remove --purge --auto-remove -y gnupg1 gnupg && rm -rf /var/lib/apt/lists/* \
 	&& dpkgArch="$(dpkg --print-architecture)" \
 	&& nginxPackages=" \
 		nginx=${NGINX_VERSION} \
