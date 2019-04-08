@@ -74,7 +74,7 @@ RUN set -ex; \
     \
 # reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
 
-apt-mark auto '.*' > /dev/null; \
+    apt-mark auto '.*' > /dev/null; \
     apt-mark manual $savedAptMark; \
     ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
         | awk '/=>/ { print $3 }' \
@@ -84,6 +84,8 @@ apt-mark auto '.*' > /dev/null; \
         | sort -u \
         | xargs -rt apt-mark manual; \
     \
+    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
+    rm -rf /var/lib/apt/lists/*
 
 ENV NGINX_VERSION 1.15.10-1~stretch
 ENV NJS_VERSION   1.15.10.0.3.0-1~stretch
@@ -167,9 +169,9 @@ RUN set -x \
 	\
 # if we have leftovers from building, let's purge them (including extra, unnecessary build deps)
 	&& if [ -n "$tempDir" ]; then \
-		#apt-get purge -y --auto-remove \
-		#&& rm -rf "$tempDir" /etc/apt/sources.list.d/temp.list; \
-        rm -rf "$tempDir" /etc/apt/sources.list.d/temp.list; \
+		apt-get purge -y --auto-remove \
+		&& rm -rf "$tempDir" /etc/apt/sources.list.d/temp.list; \
+        #rm -rf "$tempDir" /etc/apt/sources.list.d/temp.list; \
 	fi
 
 # forward request and error logs to docker log collector
