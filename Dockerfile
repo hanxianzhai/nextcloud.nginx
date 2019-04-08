@@ -2,7 +2,7 @@ FROM php:7-fpm-stretch
 
 ENV NGINX_VERSION 1.15.10-1~stretch
 ENV NJS_VERSION   1.15.10.0.3.0-1~stretch
-
+ENV NEXTCLOUD_VERSION 15.0.6
 # entrypoint.sh and cron.sh dependencies
 RUN set -ex; \
     \
