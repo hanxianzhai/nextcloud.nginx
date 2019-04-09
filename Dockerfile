@@ -247,14 +247,15 @@ RUN mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak \
 	&& mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak \
     && mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord.conf.bak
 	\
-COPY nginx.conf /etc/nginx/nginx.conf
-COPY pan.itop.vip.conf /etc/nginx/conf.d/
-COPY supervisord.conf /etc/supervisor/
-COPY supervisord_fpm.conf /etc/supervisor/conf.d/
-COPY supervisord_nginx.conf /etc/supervisor/conf.d/
+COPY nginx/nginx.conf /etc/nginx/
+COPY nginx/pan.itop.vip.conf /etc/nginx/conf.d/
+COPY nginx/pan.itop.vip.crt /etc/ssl/nginx/
+COPY nginx/pan.itop.vip.key /etc/ssl/nginx/
+COPY supervisord/supervisord.conf /etc/supervisor/
+COPY supervisord/supervisord_fpm.conf /etc/supervisor/conf.d/
+COPY supervisord/supervisord_nginx.conf /etc/supervisor/conf.d/
 COPY *.sh upgrade.exclude /
 COPY config/* /usr/src/nextcloud/config/
-RUN chmod +x /*.sh
 
 VOLUME /var/www/html
 VOLUME /etc/ssl/nginx/
