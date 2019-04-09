@@ -249,9 +249,9 @@ RUN mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak \
     && mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord.conf.bak
 	\
 COPY nginx/nginx.conf /etc/nginx/
-COPY nginx/pan.itop.vip.conf /etc/nginx/conf.d/
-COPY nginx/pan.itop.vip.crt /etc/ssl/nginx/
-COPY nginx/pan.itop.vip.key /etc/ssl/nginx/
+COPY nginx/default.conf /etc/nginx/conf.d/
+COPY nginx/tls.crt /etc/ssl/nginx/
+COPY nginx/tls.key /etc/ssl/nginx/
 COPY supervisord/supervisord.conf /etc/supervisor/
 COPY supervisord/supervisord_fpm.conf /etc/supervisor/conf.d/
 COPY supervisord/supervisord_nginx.conf /etc/supervisor/conf.d/
