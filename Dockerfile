@@ -91,6 +91,7 @@ RUN set -ex; \
     curl -fsSL -o nextcloud.tar.bz2.asc \
         "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2.asc"; \
     export GNUPGHOME="$(mktemp -d)"; \
+    \
 # gpg key from https://nextcloud.com/nextcloud.asc
     NEXTCLOUD_GPGKEY=28806A878AE423A28372792ED75899B9A724937A; \
 	find=''; \
@@ -214,7 +215,7 @@ RUN { \
     mkdir /var/www/data; \
     chown -R www-data:root /var/www; \
     chmod -R g=u /var/www
-
+    
 RUN set -ex \
 	&& cd /usr/local/etc \
 	&& rm -f php-fpm.d/docker.conf php-fpm.d/zz-docker.conf \
