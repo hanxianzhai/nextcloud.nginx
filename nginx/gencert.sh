@@ -48,11 +48,3 @@ openssl x509 -req -days $VALID_DAYS -signkey $FILE_PREFIX.key -in $FILE_PREFIX.c
 # 2.5 crt转为p12证书
 echo -e "\n----------------------------------------------------------\ncrt转为p12证书\n"
 openssl pkcs12 -export -in $FILE_PREFIX.crt -inkey $FILE_PREFIX.key -name $CRT_ALIAS -passout pass:$PASS_P12 -out $FILE_PREFIX.p12
-
-# 2.6 p12和jks证书互转
-echo -e "\n----------------------------------------------------------\np12和jks证书互转\n"
-keytool -importkeystore -srckeystore $FILE_PREFIX.p12 -srcstoretype PKCS12 -deststoretype JKS -srcstorepass $PASS_P12 -deststorepass $PASS_JKS -destkeystore $FILE_PREFIX.jks
-
-# 2.7 证书查看
-echo -e "\n----------------------------------------------------------\n证书查看\n"
-keytool -list -v -storepass $PASS_JKS -keystore $FILE_PREFIX.jks
