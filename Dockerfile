@@ -239,7 +239,7 @@ RUN set -ex \
 		echo '[www]'; \
 		echo 'listen = /dev/shm/php-fpm.sock'; \
 		echo 'listen.owner = www-data'; \
-		echo 'listen.group = root'; \
+		echo 'listen.group = www-data'; \
 		echo 'listen.mode = 0660'; \
 	} | tee php-fpm.d/zz-docker.conf
 
