@@ -3,28 +3,21 @@ FROM php:7-fpm-stretch
 ENV NGINX_VERSION 1.15.10-1~stretch
 ENV NJS_VERSION   1.15.10.0.3.0-1~stretch
 ENV NEXTCLOUD_VERSION 15.0.6
-# entrypoint.sh and cron.sh dependencies
+
 RUN set -ex; \
     \
+# entrypoint.sh and cron.sh dependencies
     apt-get update; \
     apt-get install -y --no-install-recommends \
         rsync \
         bzip2 \
         busybox-static \
     ; \
-    rm -rf /var/lib/apt/lists/*; \
-    \
-    mkdir -p /var/spool/cron/crontabs; \
-    echo '*/15 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
-
-# install the PHP extensions we need
-# see https://docs.nextcloud.com/server/12/admin_manual/installation/source_installation.html
-RUN set -ex; \
-    \
 # save list of currently-installed packages so build dependencies can be cleanly removed later
 	savedAptMark="$(apt-mark showmanual)"; \
-	\
-    apt-get update; \
+    \
+# install the PHP extensions we need
+# see https://docs.nextcloud.com/server/12/admin_manual/installation/source_installation.html
     apt-get install -y --no-install-recommends --no-install-suggests \
         libcurl4-openssl-dev \
         libevent-dev \
@@ -216,10 +209,30 @@ RUN { \
     chown -R www-data:root /var/www; \
     chmod -R g=u /var/www
     
-RUN set -ex \
-	&& cd /usr/local/etc \
-	&& rm -f php-fpm.d/docker.conf php-fpm.d/zz-docker.conf \
-	&& { \
+RUN set -ex; \
+    \
+#php
+    echo 'apc.enable_cli=1' >> /usr/local/etc/php/conf.d/docker-php-ext-apcu.ini; \
+    \
+    echo 'memory_limit=512M' > /usr/local/etc/php/conf.d/memory-limit.ini; \
+    \
+    { \
+        echo 'opcache.enable=1'; \
+        echo 'opcache.enable_cli=1'; \
+        echo 'opcache.interned_strings_buffer=8'; \
+        echo 'opcache.max_accelerated_files=10000'; \
+        echo 'opcache.memory_consumption=128'; \
+        echo 'opcache.save_comments=1'; \
+        echo 'opcache.revalidate_freq=1'; \
+    } > /usr/local/etc/php/conf.d/opcache-recommended.ini; \
+    \
+    mkdir /var/www/data; \
+    chown -R www-data:root /var/www; \
+    chmod -R g=u /var/www; \
+    \
+#php-fpm
+    rm -f /usr/local/etc/php-fpm.d/docker.conf /usr/local/etc/php-fpm.d/zz-docker.conf; \
+	{ \
 		echo '[global]'; \
 		echo 'error_log = /proc/self/fd/2'; \
 		echo; \
@@ -231,8 +244,9 @@ RUN set -ex \
 		echo; \
 		echo '; Ensure worker stdout and stderr are sent to the main error log.'; \
 		echo 'catch_workers_output = yes'; \
-	} | tee php-fpm.d/docker.conf \
-	&& { \
+	} | tee /usr/local/etc/php-fpm.d/docker.conf; \
+    \
+	{ \
 		echo '[global]'; \
 		echo 'daemonize = off'; \
 		echo 'pid = /var/run/php-fpm.pid'; \
@@ -242,12 +256,15 @@ RUN set -ex \
 		echo 'listen.owner = www-data'; \
 		echo 'listen.group = www-data'; \
 		echo 'listen.mode = 0660'; \
-	} | tee php-fpm.d/zz-docker.conf
-
-RUN mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak \
-	&& mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak \
-    && mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord.conf.bak
+	} | tee /usr/local/etc/php-fpm.d/zz-docker.conf; \
+    \
+    mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak; \
+	mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak; \
+    mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord.conf.bak; \
 	\
+    mkdir -p /var/spool/cron/crontabs; \
+    echo '*/15 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
+    
 COPY nginx/nginx.conf /etc/nginx/
 COPY nginx/pan.itop.vip.conf /etc/nginx/conf.d/
 COPY nginx/pan.itop.vip.crt /etc/ssl/nginx/
