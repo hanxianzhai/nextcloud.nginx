@@ -191,24 +191,7 @@ RUN ln -sf /dev/stdout /var/log/nginx/access.log \
 
 # set recommended PHP.ini settings
 # see https://docs.nextcloud.com/server/12/admin_manual/configuration_server/server_tuning.html#enable-php-opcache
-RUN { \
-        echo 'opcache.enable=1'; \
-        echo 'opcache.enable_cli=1'; \
-        echo 'opcache.interned_strings_buffer=8'; \
-        echo 'opcache.max_accelerated_files=10000'; \
-        echo 'opcache.memory_consumption=128'; \
-        echo 'opcache.save_comments=1'; \
-        echo 'opcache.revalidate_freq=1'; \
-    } > /usr/local/etc/php/conf.d/opcache-recommended.ini; \
-    \
-    echo 'apc.enable_cli=1' >> /usr/local/etc/php/conf.d/docker-php-ext-apcu.ini; \
-    \
-    echo 'memory_limit=512M' > /usr/local/etc/php/conf.d/memory-limit.ini; \
-    \
-    mkdir /var/www/data; \
-    chown -R www-data:root /var/www; \
-    chmod -R g=u /var/www
-    
+  
 RUN set -ex; \
     \
 #php
