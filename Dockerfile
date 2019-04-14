@@ -29,10 +29,9 @@ RUN set -ex; \
         libmemcached-dev \
         libpng-dev \
         libpq-dev \
-        libzip-dev \
         libxml2-dev \
         libmagickwand-dev \
-        libmemcached-dev \
+        libzip-dev \
         supervisor \
         gnupg \
         dirmngr \
@@ -59,10 +58,10 @@ RUN set -ex; \
 # pecl will claim success even if one install fails, so we need to perform each install separately
     pecl install igbinary; \
     pecl install msgpack; \
-    printf "no\\n" | pecl install APCu; \
-    printf "yes\\nyes\\nno\\nyes\\nyes\\nyes\\nno\\n\\n" | pecl install memcached; \
-    printf "yes\\nyes\\n" | pecl install redis; \
-    printf "\\n" | pecl install imagick; \
+    pecl install APCu; \
+    pecl install memcached; \
+    pecl install redis; \
+    pecl install imagick; \
     \
     docker-php-ext-enable \
         apcu \
