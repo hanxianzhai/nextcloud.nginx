@@ -56,8 +56,6 @@ RUN set -ex; \
     ; \
     \
 # pecl will claim success even if one install fails, so we need to perform each install separately
-    pecl install igbinary; \
-    pecl install msgpack; \
     pecl install APCu; \
     pecl install memcached; \
     pecl install redis; \
@@ -236,7 +234,7 @@ RUN set -ex; \
 		echo '[www]'; \
 		echo 'listen = /dev/shm/php-fpm.sock'; \
 		echo 'listen.owner = www-data'; \
-		echo 'listen.group = www-data'; \
+		echo 'listen.group = root'; \
 		echo 'listen.mode = 0660'; \
 	} | tee /usr/local/etc/php-fpm.d/zz-docker.conf; \
     \
