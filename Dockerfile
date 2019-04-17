@@ -207,7 +207,7 @@ RUN set -ex; \
     } > /usr/local/etc/php/conf.d/opcache-recommended.ini; \
     \
     mkdir /var/www/data; \
-    chown -R www-data:root /var/www; \
+    chown -R www-data:www-data /var/www; \
     chmod -R g=u /var/www; \
     \
 #php-fpm
@@ -234,7 +234,7 @@ RUN set -ex; \
 		echo '[www]'; \
 		echo 'listen = /dev/shm/php-fpm.sock'; \
 		echo 'listen.owner = www-data'; \
-		echo 'listen.group = root'; \
+		echo 'listen.group = www-data'; \
 		echo 'listen.mode = 0660'; \
 	} | tee /usr/local/etc/php-fpm.d/zz-docker.conf; \
     \
