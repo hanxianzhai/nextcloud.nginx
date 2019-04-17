@@ -242,6 +242,7 @@ RUN set -ex; \
     mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak; \
 	mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak; \
     mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord.conf.bak; \
+    mv /usr/local/etc/php-fpm.d/www.conf /usr/local/etc/php-fpm.d/www.conf.bak; \ 
 	\
     mkdir -p /var/spool/cron/crontabs; \
     echo '*/15 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
@@ -255,6 +256,7 @@ COPY supervisord/supervisord_fpm.conf /etc/supervisor/conf.d/
 COPY supervisord/supervisord_nginx.conf /etc/supervisor/conf.d/
 COPY *.sh upgrade.exclude /
 COPY config/* /usr/src/nextcloud/config/
+COPY nginx/www-conf /usr/local/etc/php-fpm.d/www.conf
 
 VOLUME /var/www/html
 VOLUME /etc/ssl/nginx/
