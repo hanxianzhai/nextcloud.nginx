@@ -1,8 +1,9 @@
-FROM php:7-fpm-stretch
+#FROM php:7-fpm-stretch
+FROM php:7.3-fpm-stretch
 
-ENV NGINX_VERSION 1.15.10-1~stretch
-ENV NJS_VERSION   1.15.10.0.3.0-1~stretch
-ENV NEXTCLOUD_VERSION 15.0.6
+ENV NGINX_VERSION 1.15.12-1~stretch
+ENV NJS_VERSION   1.15.12.0.3.1-1~stretch
+ENV NEXTCLOUD_VERSION 15.0.7
 
 RUN set -ex; \
     \
@@ -56,10 +57,10 @@ RUN set -ex; \
     ; \
     \
 # pecl will claim success even if one install fails, so we need to perform each install separately
-    pecl install APCu; \
-    pecl install memcached; \
-    pecl install redis; \
-    pecl install imagick; \
+    pecl install APCu-5.1.17; \
+    pecl install memcached-3.1.3; \
+    pecl install redis-4.3.0; \
+    pecl install imagick-3.4.3; \
     \
     docker-php-ext-enable \
         apcu \
@@ -207,7 +208,7 @@ RUN set -ex; \
     } > /usr/local/etc/php/conf.d/opcache-recommended.ini; \
     \
     mkdir /var/www/data; \
-    chown -R www-data:www-data /var/www; \
+    chown -R www-data:root /var/www; \
     chmod -R g=u /var/www; \
     \
 #php-fpm
@@ -234,7 +235,7 @@ RUN set -ex; \
 		echo '[www]'; \
 		echo 'listen = /dev/shm/php-fpm.sock'; \
 		echo 'listen.owner = www-data'; \
-		echo 'listen.group = www-data'; \
+		echo 'listen.group = root'; \
 		echo 'listen.mode = 0660'; \
 	} | tee /usr/local/etc/php-fpm.d/zz-docker.conf; \
     \
