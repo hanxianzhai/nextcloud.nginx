@@ -40,7 +40,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "$1" = "supervi
             run_as 'php /var/www/html/occ app:list' | sed -n "/Enabled:/,/Disabled:/p" > /tmp/list_before
         fi
         if [ "$(id -u)" = 0 ]; then
-            rsync_options="-rlDog --chown www-data:root"
+            rsync_options="-rlDog --chown www-data:www-data"
         else
             rsync_options="-rlD"
         fi
