@@ -256,7 +256,7 @@ COPY supervisord/supervisord_fpm.conf /etc/supervisor/conf.d/
 COPY supervisord/supervisord_nginx.conf /etc/supervisor/conf.d/
 COPY *.sh upgrade.exclude /
 COPY config/* /usr/src/nextcloud/config/
-COPY nginx/www-conf /usr/local/etc/php-fpm.d/www.conf
+COPY nginx/www.conf /usr/local/etc/php-fpm.d/www.conf
 
 VOLUME /var/www/html
 VOLUME /etc/ssl/nginx/
