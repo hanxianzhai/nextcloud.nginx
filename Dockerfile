@@ -196,6 +196,7 @@ RUN { \
     mkdir /var/www/data; \
     chown -R www-data:root /var/www; \
     chmod -R g=u /var/www; \
+    mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak; \
 	{ \
 		echo '[global]'; \
 		echo 'error_log = /proc/self/fd/2'; \
