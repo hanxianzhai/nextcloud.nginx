@@ -1,126 +1,148 @@
-FROM php:7.3-fpm-stretch
+# DO NOT EDIT: created by update.sh from Dockerfile-alpine.template
+FROM php:7.3-fpm-alpine3.9
 
 # entrypoint.sh and cron.sh dependencies
 RUN set -ex; \
     \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
+    apk add --no-cache \
         rsync \
-        bzip2 \
-        busybox-static \
     ; \
-    rm -rf /var/lib/apt/lists/*; \
     \
-    mkdir -p /var/spool/cron/crontabs; \
+    rm /var/spool/cron/crontabs/root; \
     echo '*/15 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
 
-ENV NGINX_VERSION 1.15.12-1~stretch
-ENV NJS_VERSION   1.15.12.0.3.1-1~stretch
+
+ENV NGINX_VERSION 1.16.0
+ENV NJS_VERSION   0.3.1
+ENV PKG_RELEASE 1
 
 RUN set -x \
-	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y gnupg1 apt-transport-https ca-certificates \
-	&& \
-	NGINX_GPGKEY=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62; \
-	found=''; \
-	for server in \
-		ha.pool.sks-keyservers.net \
-		hkp://keyserver.ubuntu.com:80 \
-		hkp://p80.pool.sks-keyservers.net:80 \
-		pgp.mit.edu \
-	; do \
-		echo "Fetching GPG key $NGINX_GPGKEY from $server"; \
-		apt-key adv --keyserver "$server" --keyserver-options timeout=10 --recv-keys "$NGINX_GPGKEY" && found=yes && break; \
-	done; \
-	test -z "$found" && echo >&2 "error: failed to fetch GPG key $NGINX_GPGKEY" && exit 1; \
-	apt-get remove --purge --auto-remove -y gnupg1 && rm -rf /var/lib/apt/lists/* \
-	&& dpkgArch="$(dpkg --print-architecture)" \
-	&& nginxPackages=" \
-		nginx=${NGINX_VERSION} \
-		nginx-module-xslt=${NGINX_VERSION} \
-		nginx-module-geoip=${NGINX_VERSION} \
-		nginx-module-image-filter=${NGINX_VERSION} \
-		nginx-module-njs=${NJS_VERSION} \
-	" \
-	&& case "$dpkgArch" in \
-		amd64|i386) \
-# arches officialy built by upstream
-			echo "deb https://nginx.org/packages/mainline/debian/ stretch nginx" >> /etc/apt/sources.list.d/nginx.list \
-			&& apt-get update \
-			;; \
-		*) \
+    && apkArch="$(cat /etc/apk/arch)" \
+    && nginxPackages=" \
+        nginx=${NGINX_VERSION}-r${PKG_RELEASE} \
+        nginx-module-xslt=${NGINX_VERSION}-r${PKG_RELEASE} \
+        nginx-module-geoip=${NGINX_VERSION}-r${PKG_RELEASE} \
+        nginx-module-image-filter=${NGINX_VERSION}-r${PKG_RELEASE} \
+        nginx-module-njs=${NGINX_VERSION}.${NJS_VERSION}-r${PKG_RELEASE} \
+    " \
+    && case "$apkArch" in \
+        x86_64) \
+# arches officially built by upstream
+            set -x \
+            && KEY_SHA512="e7fa8303923d9b95db37a77ad46c68fd4755ff935d0a534d26eba83de193c76166c68bfe7f65471bf8881004ef4aa6df3e34689c305662750c0172fca5d8552a *stdin" \
+            && apk add --no-cache --virtual .cert-deps \
+                openssl curl ca-certificates \
+            && curl -o /tmp/nginx_signing.rsa.pub https://nginx.org/keys/nginx_signing.rsa.pub \
+            && if [ "$(openssl rsa -pubin -in /tmp/nginx_signing.rsa.pub -text -noout | openssl sha512 -r)" = "$KEY_SHA512" ]; then \
+                 echo "key verification succeeded!"; \
+                 mv /tmp/nginx_signing.rsa.pub /etc/apk/keys/; \
+               else \
+                 echo "key verification failed!"; \
+                 exit 1; \
+               fi \
+            && printf "%s%s%s\n" \
+                "http://nginx.org/packages/alpine/v" \
+                `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` \
+                "/main" \
+            | tee -a /etc/apk/repositories \
+            && apk del .cert-deps \
+            ;; \
+        *) \
 # we're on an architecture upstream doesn't officially build for
-# let's build binaries from the published source packages
-			echo "deb-src https://nginx.org/packages/mainline/debian/ stretch nginx" >> /etc/apt/sources.list.d/nginx.list \
-			\
-# new directory for storing sources and .deb files
-			&& tempDir="$(mktemp -d)" \
-			&& chmod 777 "$tempDir" \
-# (777 to ensure APT's "_apt" user can access it too)
-			\
-# build .deb files from upstream's source packages (which are verified by apt-get)
-			&& apt-get update \
-			&& apt-get build-dep -y $nginxPackages \
-			&& ( \
-				cd "$tempDir" \
-				&& DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" \
-					apt-get source --compile $nginxPackages \
-			) \
-# we don't remove APT lists here because they get re-downloaded and removed later
-			\
-# reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
-# (which is done after we install the built packages so we don't have to redownload any overlapping dependencies)
-			&& apt-mark showmanual | xargs apt-mark auto > /dev/null \
-			&& { [ -z "$savedAptMark" ] || apt-mark manual $savedAptMark; } \
-			\
-# create a temporary local APT repo to install from (so that dependency resolution can be handled by APT, as it should be)
-			&& ls -lAFh "$tempDir" \
-			&& ( cd "$tempDir" && dpkg-scanpackages . > Packages ) \
-			&& grep '^Package: ' "$tempDir/Packages" \
-			&& echo "deb [ trusted=yes ] file://$tempDir ./" > /etc/apt/sources.list.d/temp.list \
-# work around the following APT issue by using "Acquire::GzipIndexes=false" (overriding "/etc/apt/apt.conf.d/docker-gzip-indexes")
-#   Could not open file /var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages - open (13: Permission denied)
-#   ...
-#   E: Failed to fetch store:/var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages  Could not open file /var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages - open (13: Permission denied)
-			&& apt-get -o Acquire::GzipIndexes=false update \
-			;; \
-	esac \
-	\
-	&& apt-get install --no-install-recommends --no-install-suggests -y \
-						$nginxPackages \
-						gettext-base \
-
+# let's build binaries from the published packaging sources
+            set -x \
+            && tempDir="$(mktemp -d)" \
+            && chown nobody:nobody $tempDir \
+            && apk add --no-cache --virtual .build-deps \
+                gcc \
+                libc-dev \
+                make \
+                openssl-dev \
+                pcre-dev \
+                zlib-dev \
+                linux-headers \
+                libxslt-dev \
+                gd-dev \
+                geoip-dev \
+                perl-dev \
+                libedit-dev \
+                mercurial \
+                bash \
+                alpine-sdk \
+                findutils \
+            && su - nobody -s /bin/sh -c " \
+                export HOME=${tempDir} \
+                && cd ${tempDir} \
+                && hg clone https://hg.nginx.org/pkg-oss \
+                && cd pkg-oss \
+                && hg up ${NGINX_VERSION}-${PKG_RELEASE} \
+                && cd alpine \
+                && make all \
+                && apk index -o ${tempDir}/packages/alpine/${apkArch}/APKINDEX.tar.gz ${tempDir}/packages/alpine/${apkArch}/*.apk \
+                && abuild-sign -k ${tempDir}/.abuild/abuild-key.rsa ${tempDir}/packages/alpine/${apkArch}/APKINDEX.tar.gz \
+                " \
+            && echo "${tempDir}/packages/alpine/" >> /etc/apk/repositories \
+            && cp ${tempDir}/.abuild/abuild-key.rsa.pub /etc/apk/keys/ \
+            && apk del .build-deps \
+            ;; \
+    esac \
+    && apk add --no-cache $nginxPackages \
+# if we have leftovers from building, let's purge them (including extra, unnecessary build deps)
+    && if [ -n "$tempDir" ]; then rm -rf "$tempDir"; fi \
+    && if [ -n "/etc/apk/keys/abuild-key.rsa.pub" ]; then rm -f /etc/apk/keys/abuild-key.rsa.pub; fi \
+    && if [ -n "/etc/apk/keys/nginx_signing.rsa.pub" ]; then rm -f /etc/apk/keys/nginx_signing.rsa.pub; fi \
+# remove the last line with the packages repos in the repositories file
+    && sed -i '$ d' /etc/apk/repositories \
+# Bring in gettext so we can get `envsubst`, then throw
+# the rest away. To do this, we need to install `gettext`
+# then move `envsubst` out of the way so `gettext` can
+# be deleted completely, then move `envsubst` back.
+    && apk add --no-cache --virtual .gettext gettext \
+    && mv /usr/bin/envsubst /tmp/ \
+    \
+    && runDeps="$( \
+        scanelf --needed --nobanner /tmp/envsubst \
+            | awk '{ gsub(/,/, "\nso:", $2); print "so:" $2 }' \
+            | sort -u \
+            | xargs -r apk info --installed \
+            | sort -u \
+    )" \
+    && apk add --no-cache $runDeps \
+    && apk del .gettext \
+    && mv /tmp/envsubst /usr/local/bin/ \
+# Bring in tzdata so users could set the timezones through the environment
+# variables
+    && apk add --no-cache tzdata supervisor \
 # forward request and error logs to docker log collector
-RUN ln -sf /dev/stdout /var/log/nginx/access.log \
-	&& ln -sf /dev/stderr /var/log/nginx/error.log
+    && ln -sf /dev/stdout /var/log/nginx/access.log \
+    && ln -sf /dev/stderr /var/log/nginx/error.log
+
 
 
 # install the PHP extensions we need
 # see https://docs.nextcloud.com/server/12/admin_manual/installation/source_installation.html
 RUN set -ex; \
     \
-    savedAptMark="$(apt-mark showmanual)"; \
-    \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
-        libcurl4-openssl-dev \
+    apk add --no-cache --virtual .build-deps \
+        $PHPIZE_DEPS \
+        autoconf \
+        freetype-dev \
+        icu-dev \
         libevent-dev \
-        libfreetype6-dev \
-        libicu-dev \
-        libjpeg-dev \
-        libldap2-dev \
+        libjpeg-turbo-dev \
         libmcrypt-dev \
-        libmemcached-dev \
         libpng-dev \
-        libpq-dev \
+        libmemcached-dev \
         libxml2-dev \
-        libmagickwand-dev \
         libzip-dev \
+        openldap-dev \
+        pcre-dev \
+        postgresql-dev \
+        imagemagick-dev \
     ; \
     \
-    debMultiarch="$(dpkg-architecture --query DEB_BUILD_MULTIARCH)"; \
     docker-php-ext-configure gd --with-freetype-dir=/usr --with-png-dir=/usr --with-jpeg-dir=/usr; \
-    docker-php-ext-configure ldap --with-libdir="lib/$debMultiarch"; \
+    docker-php-ext-configure ldap; \
     docker-php-ext-install \
         exif \
         gd \
@@ -146,19 +168,14 @@ RUN set -ex; \
         imagick \
     ; \
     \
-# reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
-    apt-mark auto '.*' > /dev/null; \
-    apt-mark manual $savedAptMark; \
-    ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
-        | awk '/=>/ { print $3 }' \
-        | sort -u \
-        | xargs -r dpkg-query -S \
-        | cut -d: -f1 \
-        | sort -u \
-        | xargs -rt apt-mark manual; \
-    \
-    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
-    rm -rf /var/lib/apt/lists/*
+    runDeps="$( \
+        scanelf --needed --nobanner --format '%n#p' --recursive /usr/local/lib/php/extensions \
+            | tr ',' '\n' \
+            | sort -u \
+            | awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
+    )"; \
+    apk add --virtual .nextcloud-phpext-rundeps $runDeps; \
+    apk del .build-deps
 
 # set recommended PHP.ini settings
 # see https://docs.nextcloud.com/server/12/admin_manual/configuration_server/server_tuning.html#enable-php-opcache
@@ -178,50 +195,18 @@ RUN { \
     \
     mkdir /var/www/data; \
     chown -R www-data:root /var/www; \
-    chmod -R g=u /var/www; \
-    \
+    chmod -R g=u /var/www
 
-    rm -f /usr/local/etc/php-fpm.d/docker.conf /usr/local/etc/php-fpm.d/zz-docker.conf; \
-	{ \
-		echo '[global]'; \
-		echo 'error_log = /proc/self/fd/2'; \
-		echo; \
-		echo '[www]'; \
-		echo '; if we send this to /proc/self/fd/1, it never appears'; \
-		echo 'access.log = /proc/self/fd/2'; \
-		echo; \
-		echo 'clear_env = no'; \
-		echo; \
-		echo '; Ensure worker stdout and stderr are sent to the main error log.'; \
-		echo 'catch_workers_output = yes'; \
-	} | tee /usr/local/etc/php-fpm.d/docker.conf; \
-    \
-	{ \
-		echo '[global]'; \
-		echo 'daemonize = off'; \
-		echo 'pid = /var/run/php-fpm.pid'; \
-		echo; \
-		echo '[www]'; \
-		echo 'listen = /dev/shm/php-fpm.sock'; \
-		echo 'listen.owner = www-data'; \
-		echo 'listen.group = root'; \
-		echo 'listen.mode = 0660'; \
-	} | tee /usr/local/etc/php-fpm.d/zz-docker.conf; \
-    \
-    mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak; \
-	mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak; \
-    mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord.conf.bak
+VOLUME /var/www/html
+
 
 ENV NEXTCLOUD_VERSION 15.0.7
 
 RUN set -ex; \
-    fetchDeps=" \
+    apk add --no-cache --virtual .fetch-deps \
+        bzip2 \
         gnupg \
-        dirmngr \
-        gnupg1 \
-    "; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends $fetchDeps; \
+    ; \
     \
     curl -fsSL -o nextcloud.tar.bz2 \
         "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2"; \
@@ -229,18 +214,8 @@ RUN set -ex; \
         "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2.asc"; \
     export GNUPGHOME="$(mktemp -d)"; \
 # gpg key from https://nextcloud.com/nextcloud.asc
-    NEXTCLOUD_GPGKEY=28806A878AE423A28372792ED75899B9A724937A; \
-	find=''; \
-	for server in \
-		ha.pool.sks-keyservers.net \
-		hkp://keyserver.ubuntu.com:80 \
-		hkp://p80.pool.sks-keyservers.net:80 \
-		pgp.mit.edu \
-	; do \
-		echo "Fetching GPG key $NEXTCLOUD_GPGKEY from $server"; \
-		gpg --batch --keyserver "$server" --recv-keys "$NEXTCLOUD_GPGKEY" && find=yes && break; \
-	done; \
-	test -z "$find" && echo >&2 "error: failed to fetch GPG key $NEXTCLOUD_GPGKEY" && exit 1; \
+    gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys 28806A878AE423A28372792ED75899B9A724937A; \
+    gpg --batch --verify nextcloud.tar.bz2.asc nextcloud.tar.bz2; \
     tar -xjf nextcloud.tar.bz2 -C /usr/src/; \
     gpgconf --kill all; \
     rm -r "$GNUPGHOME" nextcloud.tar.bz2.asc nextcloud.tar.bz2; \
@@ -248,69 +223,7 @@ RUN set -ex; \
     mkdir -p /usr/src/nextcloud/data; \
     mkdir -p /usr/src/nextcloud/custom_apps; \
     chmod +x /usr/src/nextcloud/occ; \
-    \
-	NGINX_GPGKEY=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62; \
-	found=''; \
-	for server in \
-		ha.pool.sks-keyservers.net \
-		hkp://keyserver.ubuntu.com:80 \
-		hkp://p80.pool.sks-keyservers.net:80 \
-		pgp.mit.edu \
-	; do \
-		echo "Fetching GPG key $NGINX_GPGKEY from $server"; \
-		apt-key adv --keyserver "$server" --keyserver-options timeout=10 --recv-keys "$NGINX_GPGKEY" && found=yes && break; \
-	done; \
-	test -z "$found" && echo >&2 "error: failed to fetch GPG key $NGINX_GPGKEY" && exit 1; \
-	apt-get remove --purge --auto-remove -y gnupg1 && rm -rf /var/lib/apt/lists/* \
-	&& dpkgArch="$(dpkg --print-architecture)" \
-	&& nginxPackages=" \
-		nginx=${NGINX_VERSION} \
-		nginx-module-xslt=${NGINX_VERSION} \
-		nginx-module-geoip=${NGINX_VERSION} \
-		nginx-module-image-filter=${NGINX_VERSION} \
-		nginx-module-njs=${NJS_VERSION} \
-	" \
-	&& case "$dpkgArch" in \
-		amd64|i386) \
-# arches officialy built by upstream
-			echo "deb https://nginx.org/packages/mainline/debian/ stretch nginx" >> /etc/apt/sources.list.d/nginx.list \
-			&& apt-get update \
-			;; \
-		*) \
-# we're on an architecture upstream doesn't officially build for
-# let's build binaries from the published source packages
-			echo "deb-src https://nginx.org/packages/mainline/debian/ stretch nginx" >> /etc/apt/sources.list.d/nginx.list \
-			\
-# new directory for storing sources and .deb files
-			&& tempDir="$(mktemp -d)" \
-			&& chmod 777 "$tempDir" \
-# (777 to ensure APT's "_apt" user can access it too)
-			\
-# build .deb files from upstream's source packages (which are verified by apt-get)
-			&& apt-get update \
-			&& apt-get build-dep -y $nginxPackages \
-			&& ( \
-				cd "$tempDir" \
-				&& DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" \
-					apt-get source --compile $nginxPackages \
-			) \
-# work around the following APT issue by using "Acquire::GzipIndexes=false" (overriding "/etc/apt/apt.conf.d/docker-gzip-indexes")
-#   Could not open file /var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages - open (13: Permission denied)
-#   ...
-#   E: Failed to fetch store:/var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages  Could not open file /var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages - open (13: Permission denied)
-			&& apt-get -o Acquire::GzipIndexes=false update \
-			;; \
-	esac \
-	\
-	&& apt-get install --no-install-recommends --no-install-suggests -y \
-						$nginxPackages \
-						gettext-base \
-    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false $fetchDeps; \
-    rm -rf /var/lib/apt/lists/*
-
-# forward request and error logs to docker log collector
-RUN ln -sf /dev/stdout /var/log/nginx/access.log \
-	&& ln -sf /dev/stderr /var/log/nginx/error.log
+    apk del .fetch-deps
 
 COPY nginx/nginx.conf /etc/nginx/
 COPY nginx/pan.itop.vip.conf /etc/nginx/conf.d/
@@ -322,12 +235,5 @@ COPY supervisord/supervisord_nginx.conf /etc/supervisor/conf.d/
 COPY *.sh upgrade.exclude /
 COPY config/* /usr/src/nextcloud/config/
 
-VOLUME /var/www/html
-VOLUME /etc/ssl/nginx/
-
-EXPOSE 443
-EXPOSE 80
-
-STOPSIGNAL SIGTERM
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["supervisord"]
