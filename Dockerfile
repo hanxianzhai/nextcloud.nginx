@@ -229,9 +229,9 @@ COPY nginx/nginx.conf /etc/nginx/
 COPY nginx/pan.itop.vip.conf /etc/nginx/conf.d/
 COPY nginx/pan.itop.vip.crt /etc/ssl/nginx/
 COPY nginx/pan.itop.vip.key /etc/ssl/nginx/
-COPY supervisord/supervisord.conf /etc/supervisor/
-COPY supervisord/supervisord_fpm.conf /etc/supervisor/conf.d/
-COPY supervisord/supervisord_nginx.conf /etc/supervisor/conf.d/
+COPY supervisord/supervisord.conf /etc/
+COPY supervisord/supervisord_fpm.ini /etc/supervisor.d/
+COPY supervisord/supervisord_nginx.ini /etc/supervisor.d/
 COPY *.sh upgrade.exclude /
 COPY config/* /usr/src/nextcloud/config/
 
