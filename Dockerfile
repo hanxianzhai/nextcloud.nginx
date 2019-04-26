@@ -195,7 +195,34 @@ RUN { \
     \
     mkdir /var/www/data; \
     chown -R www-data:root /var/www; \
-    chmod -R g=u /var/www
+    chmod -R g=u /var/www; \
+	{ \
+		echo '[global]'; \
+		echo 'error_log = /proc/self/fd/2'; \
+		echo; echo '; https://github.com/docker-library/php/pull/725#issuecomment-443540114'; echo 'log_limit = 8192'; \
+		echo; \
+		echo '[www]'; \
+		echo '; if we send this to /proc/self/fd/1, it never appears'; \
+		echo 'access.log = /proc/self/fd/2'; \
+		echo; \
+		echo 'clear_env = no'; \
+		echo; \
+		echo '; Ensure worker stdout and stderr are sent to the main error log.'; \
+		echo 'catch_workers_output = yes'; \
+		echo 'decorate_workers_output = no'; \
+	} | tee /usr/local/etc/php-fpm.d/docker.conf; \
+    \
+	{ \
+		echo '[global]'; \
+		echo 'daemonize = no'; \
+		echo 'pid = /var/run/php-fpm.pid'; \
+		echo; \
+		echo '[www]'; \
+		echo 'listen = /dev/shm/php-fpm.sock'; \
+		echo 'listen.owner = www-data'; \
+		echo 'listen.group = root'; \
+		echo 'listen.mode = 0660'; \
+	} | tee /usr/local/etc/php-fpm.d/zz-docker.conf 
 
 VOLUME /var/www/html
 
