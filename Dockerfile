@@ -11,7 +11,6 @@ RUN set -ex; \
     rm /var/spool/cron/crontabs/root; \
     echo '*/15 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
 
-
 ENV NGINX_VERSION 1.16.0
 ENV NJS_VERSION   0.3.1
 ENV PKG_RELEASE 1
