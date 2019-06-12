@@ -11,11 +11,14 @@ RUN set -ex; \
     rm /var/spool/cron/crontabs/root; \
     echo '*/15 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
 
-ENV NGINX_VERSION 1.16.0
-ENV NJS_VERSION   0.3.1
+ENV NGINX_VERSION 1.17.0
+ENV NJS_VERSION   0.3.2
 ENV PKG_RELEASE 1
 
 RUN set -x \
+# create nginx user/group first, to be consistent throughout docker variants
+    && addgroup -g 101 -S nginx \
+    && adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx \
     && apkArch="$(cat /etc/apk/arch)" \
     && nginxPackages=" \
         nginx=${NGINX_VERSION}-r${PKG_RELEASE} \
@@ -40,7 +43,7 @@ RUN set -x \
                  exit 1; \
                fi \
             && printf "%s%s%s\n" \
-                "http://nginx.org/packages/alpine/v" \
+                "http://nginx.org/packages/mainline/alpine/v" \
                 `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` \
                 "/main" \
             | tee -a /etc/apk/repositories \
@@ -111,12 +114,10 @@ RUN set -x \
     && mv /tmp/envsubst /usr/local/bin/ \
 # Bring in tzdata so users could set the timezones through the environment
 # variables
-    && apk add --no-cache tzdata supervisor \
+    && apk add --no-cache tzdata \
 # forward request and error logs to docker log collector
     && ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log
-
-
 
 # install the PHP extensions we need
 # see https://docs.nextcloud.com/server/12/admin_manual/installation/source_installation.html
@@ -227,7 +228,7 @@ RUN { \
 VOLUME /var/www/html
 
 
-ENV NEXTCLOUD_VERSION 15.0.7
+ENV NEXTCLOUD_VERSION 16.0.1
 
 RUN set -ex; \
     apk add --no-cache --virtual .fetch-deps \
