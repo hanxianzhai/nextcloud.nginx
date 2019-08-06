@@ -258,7 +258,7 @@ RUN set -ex; \
 COPY nginx/nginx.conf /etc/nginx/
 
 COPY nginx/default.conf /etc/nginx/conf.d/
-#COPY nginx/***.pem /etc/ssl/nginx/
+#COPY nginx/***.crt /etc/ssl/nginx/
 #COPY nginx/***.key /etc/ssl/nginx/
 COPY supervisord/supervisord.conf /etc/
 COPY supervisord/supervisord_fpm.ini /etc/supervisor.d/
