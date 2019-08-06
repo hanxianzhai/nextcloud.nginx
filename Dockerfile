@@ -256,9 +256,10 @@ RUN set -ex; \
     apk del .fetch-deps
 
 COPY nginx/nginx.conf /etc/nginx/
-COPY nginx/pan.itop.vip.conf /etc/nginx/conf.d/
-COPY nginx/2131164_pan.itop.vip.pem /etc/ssl/nginx/
-COPY nginx/2131164_pan.itop.vip.key /etc/ssl/nginx/
+
+COPY nginx/default.conf /etc/nginx/conf.d/
+#COPY nginx/***.pem /etc/ssl/nginx/
+#COPY nginx/***.key /etc/ssl/nginx/
 COPY supervisord/supervisord.conf /etc/
 COPY supervisord/supervisord_fpm.ini /etc/supervisor.d/
 COPY supervisord/supervisord_nginx.ini /etc/supervisor.d/
