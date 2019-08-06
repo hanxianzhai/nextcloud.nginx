@@ -5,6 +5,7 @@ FROM php:7.3-fpm-alpine3.10
 RUN set -ex; \
     \
     apk add --no-cache \
+        supervisor \
         rsync \
     ; \
     \
@@ -114,7 +115,7 @@ RUN set -x \
     && mv /tmp/envsubst /usr/local/bin/ \
 # Bring in tzdata so users could set the timezones through the environment
 # variables
-    && apk add --no-cache tzdata supervisor \
+    && apk add --no-cache tzdata \
 # forward request and error logs to docker log collector
     && ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log
