@@ -229,7 +229,6 @@ RUN { \
 
 VOLUME /var/www/html
 
-
 ENV NEXTCLOUD_VERSION 16.0.3
 
 RUN set -ex; \
@@ -265,6 +264,9 @@ COPY supervisord/supervisord_fpm.ini /etc/supervisor.d/
 COPY supervisord/supervisord_nginx.ini /etc/supervisor.d/
 COPY *.sh upgrade.exclude /
 COPY config/* /usr/src/nextcloud/config/
+
+EXPOSE 80
+EXPOSE 443
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["supervisord"]
