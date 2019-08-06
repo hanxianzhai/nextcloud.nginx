@@ -1,5 +1,5 @@
 # DO NOT EDIT: created by update.sh from Dockerfile-alpine.template
-FROM php:7.3-fpm-alpine3.9
+FROM php:7.3-fpm-alpine3.10
 
 # entrypoint.sh and cron.sh dependencies
 RUN set -ex; \
@@ -11,9 +11,9 @@ RUN set -ex; \
     rm /var/spool/cron/crontabs/root; \
     echo '*/15 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
 
-ENV NGINX_VERSION 1.17.0
-ENV NJS_VERSION   0.3.2
-ENV PKG_RELEASE 1
+ENV NGINX_VERSION 1.17.2
+ENV NJS_VERSION   0.3.3
+ENV PKG_RELEASE   1
 
 RUN set -x \
 # create nginx user/group first, to be consistent throughout docker variants
@@ -33,17 +33,17 @@ RUN set -x \
             set -x \
             && KEY_SHA512="e7fa8303923d9b95db37a77ad46c68fd4755ff935d0a534d26eba83de193c76166c68bfe7f65471bf8881004ef4aa6df3e34689c305662750c0172fca5d8552a *stdin" \
             && apk add --no-cache --virtual .cert-deps \
-                openssl curl ca-certificates \
-            && curl -o /tmp/nginx_signing.rsa.pub https://nginx.org/keys/nginx_signing.rsa.pub \
+                openssl \
+            && wget -O /tmp/nginx_signing.rsa.pub https://nginx.org/keys/nginx_signing.rsa.pub \
             && if [ "$(openssl rsa -pubin -in /tmp/nginx_signing.rsa.pub -text -noout | openssl sha512 -r)" = "$KEY_SHA512" ]; then \
-                 echo "key verification succeeded!"; \
-                 mv /tmp/nginx_signing.rsa.pub /etc/apk/keys/; \
-               else \
-                 echo "key verification failed!"; \
-                 exit 1; \
-               fi \
+                echo "key verification succeeded!"; \
+                mv /tmp/nginx_signing.rsa.pub /etc/apk/keys/; \
+            else \
+                echo "key verification failed!"; \
+                exit 1; \
+            fi \
             && printf "%s%s%s\n" \
-                "http://nginx.org/packages/mainline/alpine/v" \
+                "https://nginx.org/packages/mainline/alpine/v" \
                 `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` \
                 "/main" \
             | tee -a /etc/apk/repositories \
@@ -72,7 +72,7 @@ RUN set -x \
                 bash \
                 alpine-sdk \
                 findutils \
-            && su - nobody -s /bin/sh -c " \
+            && su nobody -s /bin/sh -c " \
                 export HOME=${tempDir} \
                 && cd ${tempDir} \
                 && hg clone https://hg.nginx.org/pkg-oss \
@@ -120,7 +120,7 @@ RUN set -x \
     && ln -sf /dev/stderr /var/log/nginx/error.log
 
 # install the PHP extensions we need
-# see https://docs.nextcloud.com/server/12/admin_manual/installation/source_installation.html
+# see https://docs.nextcloud.com/server/stable/admin_manual/installation/source_installation.html
 RUN set -ex; \
     \
     apk add --no-cache --virtual .build-deps \
@@ -139,11 +139,12 @@ RUN set -ex; \
         pcre-dev \
         postgresql-dev \
         imagemagick-dev \
+        libwebp-dev \
     ; \
     \
-    docker-php-ext-configure gd --with-freetype-dir=/usr --with-png-dir=/usr --with-jpeg-dir=/usr; \
+    docker-php-ext-configure gd --with-freetype-dir=/usr --with-png-dir=/usr --with-jpeg-dir=/usr --with-webp-dir=/usr; \
     docker-php-ext-configure ldap; \
-    docker-php-ext-install \
+    docker-php-ext-install -j "$(nproc)" \
         exif \
         gd \
         intl \
@@ -159,7 +160,7 @@ RUN set -ex; \
     pecl install APCu-5.1.17; \
     pecl install memcached-3.1.3; \
     pecl install redis-4.3.0; \
-    pecl install imagick-3.4.3; \
+    pecl install imagick-3.4.4; \
     \
     docker-php-ext-enable \
         apcu \
@@ -181,7 +182,6 @@ RUN set -ex; \
 # see https://docs.nextcloud.com/server/12/admin_manual/configuration_server/server_tuning.html#enable-php-opcache
 RUN { \
         echo 'opcache.enable=1'; \
-        echo 'opcache.enable_cli=1'; \
         echo 'opcache.interned_strings_buffer=8'; \
         echo 'opcache.max_accelerated_files=10000'; \
         echo 'opcache.memory_consumption=128'; \
@@ -196,6 +196,7 @@ RUN { \
     mkdir /var/www/data; \
     chown -R www-data:root /var/www; \
     chmod -R g=u /var/www; \
+    
     mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak; \
 	{ \
 		echo '[global]'; \
@@ -228,7 +229,7 @@ RUN { \
 VOLUME /var/www/html
 
 
-ENV NEXTCLOUD_VERSION 16.0.1
+ENV NEXTCLOUD_VERSION 16.0.3
 
 RUN set -ex; \
     apk add --no-cache --virtual .fetch-deps \
